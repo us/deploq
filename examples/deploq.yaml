@@ -1,0 +1,18 @@
+# deploq configuration example
+# See: https://github.com/uscompany/deploq
+
+listen: ":9090"
+
+projects:
+  crw-saas:
+    path: /home/us/crw-saas
+    branch: main
+    secret: "${DEPLOQ_SECRET_CRW_SAAS}"
+    compose_file: docker-compose.prod.yml
+    # deploy_timeout: 15m  # optional, default: 15m
+
+  crw-opencore:
+    path: /home/us/crw-opencore
+    branch: main
+    secret: "${DEPLOQ_SECRET_CRW_OPENCORE}"
+    # compose_file defaults to docker-compose.yml

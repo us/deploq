@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uscompany/pushup/internal/config"
-	"github.com/uscompany/pushup/internal/deploy"
+	"github.com/uscompany/deploq/internal/config"
+	"github.com/uscompany/deploq/internal/deploy"
 )
 
 func testConfig() *config.Config {
@@ -63,7 +63,7 @@ func TestHandleWebhook_InvalidProjectName(t *testing.T) {
 
 	body := []byte(`{"ref":"refs/heads/main","sha":"abc1234abc1234abc1234abc1234abc1234abc12"}`)
 	req := httptest.NewRequest("POST", "/webhook/bad%00name", bytes.NewReader(body))
-	req.Header.Set("X-Pushup-Token", "some-token")
+	req.Header.Set("X-Deploq-Token", "some-token")
 	req.SetPathValue("project", "bad\x00name")
 	w := httptest.NewRecorder()
 	srv.handleWebhook(w, req)
@@ -80,7 +80,7 @@ func TestHandleWebhook_UnknownProject(t *testing.T) {
 
 	body := []byte(`{"ref":"refs/heads/main","sha":"abc1234abc1234abc1234abc1234abc1234abc12"}`)
 	req := httptest.NewRequest("POST", "/webhook/nonexistent", bytes.NewReader(body))
-	req.Header.Set("X-Pushup-Token", "some-token")
+	req.Header.Set("X-Deploq-Token", "some-token")
 	w := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(w, req)
 
@@ -111,7 +111,7 @@ func TestHandleWebhook_InvalidToken(t *testing.T) {
 
 	body := []byte(`{"ref":"refs/heads/main","sha":"abc1234abc1234abc1234abc1234abc1234abc12"}`)
 	req := httptest.NewRequest("POST", "/webhook/test-app", bytes.NewReader(body))
-	req.Header.Set("X-Pushup-Token", "wrong-token")
+	req.Header.Set("X-Deploq-Token", "wrong-token")
 	w := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(w, req)
 
@@ -129,7 +129,7 @@ func TestHandleWebhook_BranchMismatch(t *testing.T) {
 	body := []byte(`{"ref":"refs/heads/develop","sha":"abc1234abc1234abc1234abc1234abc1234abc12"}`)
 
 	req := httptest.NewRequest("POST", "/webhook/test-app", bytes.NewReader(body))
-	req.Header.Set("X-Pushup-Token", secret)
+	req.Header.Set("X-Deploq-Token", secret)
 	w := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(w, req)
 
@@ -179,7 +179,7 @@ func TestHandleWebhook_Generic_ValidToken(t *testing.T) {
 	body := []byte(`{"ref":"refs/heads/main","sha":"def456def456def456def456def456def456def4"}`)
 
 	req := httptest.NewRequest("POST", "/webhook/test-app", bytes.NewReader(body))
-	req.Header.Set("X-Pushup-Token", secret)
+	req.Header.Set("X-Deploq-Token", secret)
 	w := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(w, req)
 
@@ -198,7 +198,7 @@ func TestHandleWebhook_FailedDeploy_AllowsRetry(t *testing.T) {
 
 	// First request — accepted (deploy will fail since /tmp/test-app doesn't exist)
 	req1 := httptest.NewRequest("POST", "/webhook/test-app", bytes.NewReader(body))
-	req1.Header.Set("X-Pushup-Token", secret)
+	req1.Header.Set("X-Deploq-Token", secret)
 	w1 := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(w1, req1)
 
@@ -210,7 +210,7 @@ func TestHandleWebhook_FailedDeploy_AllowsRetry(t *testing.T) {
 
 	// Second request with same SHA — should be accepted again (failed deploys don't record SHA)
 	req2 := httptest.NewRequest("POST", "/webhook/test-app", bytes.NewReader(body))
-	req2.Header.Set("X-Pushup-Token", secret)
+	req2.Header.Set("X-Deploq-Token", secret)
 	w2 := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(w2, req2)
 

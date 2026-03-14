@@ -36,7 +36,7 @@ func Detect(r *http.Request) (Provider, error) {
 	if r.Header.Get("X-GitHub-Event") != "" {
 		return &GitHub{}, nil
 	}
-	if r.Header.Get("X-Pushup-Token") != "" {
+	if r.Header.Get("X-Deploq-Token") != "" {
 		return &Generic{}, nil
 	}
 	return nil, fmt.Errorf("unable to detect webhook provider: no recognized headers")

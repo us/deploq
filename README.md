@@ -1,4 +1,4 @@
-# pushup
+# deploq
 
 Lightweight git push deploy tool for Docker Compose projects. Single binary, zero dependencies.
 
@@ -8,29 +8,29 @@ Receives GitHub webhooks (or generic HTTP calls from CI), pulls the latest code,
 
 ```bash
 # Build from source
-git clone https://github.com/uscompany/pushup.git
-cd pushup
+git clone https://github.com/uscompany/deploq.git
+cd deploq
 make build
 
 # Cross-compile for Linux
 make release
-scp pushup-linux-amd64 your-server:~/pushup
+scp deploq-linux-amd64 your-server:~/deploq
 ```
 
 ## Quick Start
 
 ```bash
 # Generate config
-pushup init
+deploq init
 
-# Edit pushup.yaml, set environment variables
-export PUSHUP_SECRET_MY_PROJECT="your-secret-here-min-16-chars"
+# Edit deploq.yaml, set environment variables
+export DEPLOQ_SECRET_MY_PROJECT="your-secret-here-min-16-chars"
 
 # Validate config
-pushup validate
+deploq validate
 
 # Start server
-pushup serve
+deploq serve
 ```
 
 ## Configuration
@@ -42,7 +42,7 @@ projects:
   my-app:
     path: /home/deploy/my-app
     branch: main
-    secret: "${PUSHUP_SECRET_MY_APP}"
+    secret: "${DEPLOQ_SECRET_MY_APP}"
     compose_file: docker-compose.prod.yml  # optional, default: docker-compose.yml
     deploy_timeout: 15m                     # optional, default: 15m
 ```
@@ -56,7 +56,7 @@ Secrets use `${ENV_VAR}` interpolation — never stored in plaintext.
 1. Go to repo Settings → Webhooks → Add webhook
 2. Payload URL: `https://deploy.example.com/webhook/my-app`
 3. Content type: `application/json`
-4. Secret: same as `PUSHUP_SECRET_MY_APP`
+4. Secret: same as `DEPLOQ_SECRET_MY_APP`
 5. Events: Just the `push` event
 
 ### GitHub Actions / Generic CI
@@ -64,7 +64,7 @@ Secrets use `${ENV_VAR}` interpolation — never stored in plaintext.
 ```yaml
 - run: |
     curl -X POST https://deploy.example.com/webhook/my-app \
-      -H "X-Pushup-Token: ${{ secrets.PUSHUP_TOKEN }}" \
+      -H "X-Deploq-Token: ${{ secrets.DEPLOQ_TOKEN }}" \
       -H "Content-Type: application/json" \
       -d '{"ref":"${{ github.ref }}","sha":"${{ github.sha }}"}'
 ```
@@ -72,11 +72,11 @@ Secrets use `${ENV_VAR}` interpolation — never stored in plaintext.
 ## CLI Commands
 
 ```
-pushup serve              # Start webhook server
-pushup deploy <project>   # Manual deploy
-pushup init               # Generate pushup.yaml
-pushup validate           # Validate config
-pushup version            # Print version
+deploq serve              # Start webhook server
+deploq deploy <project>   # Manual deploy
+deploq init               # Generate deploq.yaml
+deploq validate           # Validate config
+deploq version            # Print version
 ```
 
 ## Deploy Pipeline
@@ -98,12 +98,12 @@ webhook received
 ### systemd
 
 ```bash
-sudo cp pushup /usr/local/bin/
-sudo cp scripts/pushup.service /etc/systemd/system/
-sudo mkdir -p /etc/pushup
-sudo cp pushup.yaml /etc/pushup/
-echo "PUSHUP_SECRET_MY_APP=your-secret" | sudo tee /etc/pushup/env
-sudo systemctl enable --now pushup
+sudo cp deploq /usr/local/bin/
+sudo cp scripts/deploq.service /etc/systemd/system/
+sudo mkdir -p /etc/deploq
+sudo cp deploq.yaml /etc/deploq/
+echo "DEPLOQ_SECRET_MY_APP=your-secret" | sudo tee /etc/deploq/env
+sudo systemctl enable --now deploq
 ```
 
 ### Caddy reverse proxy

@@ -1,4 +1,4 @@
-# Example GitHub Actions workflow: test + deploy via pushup
+# Example GitHub Actions workflow: test + deploy via deploq
 name: CI/CD
 
 on:
@@ -21,6 +21,6 @@ jobs:
       - name: Trigger deploy
         run: |
           curl -fsSL -X POST https://deploy.example.com/webhook/crw-saas \
-            -H "X-Pushup-Token: ${{ secrets.PUSHUP_TOKEN }}" \
+            -H "X-Deploq-Token: ${{ secrets.DEPLOQ_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d '{"ref":"${{ github.ref }}","sha":"${{ github.sha }}"}'

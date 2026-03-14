@@ -6,14 +6,14 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/uscompany/pushup/internal/config"
-	"github.com/uscompany/pushup/internal/deploy"
-	"github.com/uscompany/pushup/internal/server"
+	"github.com/uscompany/deploq/internal/config"
+	"github.com/uscompany/deploq/internal/deploy"
+	"github.com/uscompany/deploq/internal/server"
 )
 
 func runServe() error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
-	configPath := fs.String("config", "pushup.yaml", "path to config file")
+	configPath := fs.String("config", "deploq.yaml", "path to config file")
 	logFormat := fs.String("log-format", "text", "log format: text or json")
 	fs.Parse(os.Args[2:])
 
@@ -31,7 +31,7 @@ func runServe() error {
 	deployer := deploy.New(cfg)
 	srv := server.New(cfg, deployer)
 
-	slog.Info("starting pushup server", "listen", cfg.Listen, "projects", len(cfg.Projects))
+	slog.Info("starting deploq server", "listen", cfg.Listen, "projects", len(cfg.Projects))
 	return srv.ListenAndServe()
 }
 

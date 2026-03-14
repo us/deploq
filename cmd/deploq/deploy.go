@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/uscompany/pushup/internal/config"
-	"github.com/uscompany/pushup/internal/deploy"
+	"github.com/uscompany/deploq/internal/config"
+	"github.com/uscompany/deploq/internal/deploy"
 )
 
 func runDeploy() error {
 	fs := flag.NewFlagSet("deploy", flag.ExitOnError)
-	configPath := fs.String("config", "pushup.yaml", "path to config file")
+	configPath := fs.String("config", "deploq.yaml", "path to config file")
 	logFormat := fs.String("log-format", "text", "log format: text or json")
 	fs.Parse(os.Args[2:])
 
@@ -20,7 +20,7 @@ func runDeploy() error {
 
 	args := fs.Args()
 	if len(args) < 1 {
-		return fmt.Errorf("usage: pushup deploy <project>")
+		return fmt.Errorf("usage: deploq deploy <project>")
 	}
 	projectName := args[0]
 

@@ -1,5 +1,5 @@
 [Unit]
-Description=Pushup — Lightweight Git Push Deploy
+Description=Deploq — Lightweight Git Push Deploy
 After=network.target docker.service
 Requires=docker.service
 
@@ -7,11 +7,11 @@ Requires=docker.service
 Type=simple
 User=deploy
 Group=deploy
-WorkingDirectory=/opt/pushup
-ExecStart=/usr/local/bin/pushup serve -config /etc/pushup/pushup.yaml -log-format json
+WorkingDirectory=/opt/deploq
+ExecStart=/usr/local/bin/deploq serve -config /etc/deploq/deploq.yaml -log-format json
 Restart=on-failure
 RestartSec=5s
-EnvironmentFile=/etc/pushup/env
+EnvironmentFile=/etc/deploq/env
 
 # Security hardening
 NoNewPrivileges=true

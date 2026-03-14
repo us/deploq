@@ -41,7 +41,7 @@ func main() {
 			os.Exit(1)
 		}
 	case "version":
-		fmt.Printf("pushup %s (commit: %s, built: %s)\n", version, commit, date)
+		fmt.Printf("deploq %s (commit: %s, built: %s)\n", version, commit, date)
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -52,19 +52,19 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Fprintf(os.Stderr, `pushup — lightweight git push deploy tool
+	fmt.Fprintf(os.Stderr, `deploq — lightweight git push deploy tool
 
 Usage:
-  pushup <command> [options]
+  deploq <command> [options]
 
 Commands:
   serve       Start webhook server
   deploy      Manually deploy a project
-  init        Generate pushup.yaml config
+  init        Generate deploq.yaml config
   validate    Validate config file
   version     Print version info
   help        Show this help
 
-Use "pushup <command> -h" for command-specific help.
+Use "deploq <command> -h" for command-specific help.
 `)
 }

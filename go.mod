@@ -1,4 +1,4 @@
-module github.com/uscompany/pushup
+module github.com/uscompany/deploq
 
 go 1.25.7
 

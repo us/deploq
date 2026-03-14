@@ -24,7 +24,7 @@ func TestDetect_GitHub(t *testing.T) {
 
 func TestDetect_Generic(t *testing.T) {
 	r := httptest.NewRequest("POST", "/webhook/test", nil)
-	r.Header.Set("X-Pushup-Token", "test-token")
+	r.Header.Set("X-Deploq-Token", "test-token")
 
 	p, err := Detect(r)
 	if err != nil {
@@ -38,7 +38,7 @@ func TestDetect_Generic(t *testing.T) {
 func TestDetect_GitHubPriority(t *testing.T) {
 	r := httptest.NewRequest("POST", "/webhook/test", nil)
 	r.Header.Set("X-GitHub-Event", "push")
-	r.Header.Set("X-Pushup-Token", "test-token")
+	r.Header.Set("X-Deploq-Token", "test-token")
 
 	p, err := Detect(r)
 	if err != nil {
@@ -113,7 +113,7 @@ func TestGitHub_ParseEvent(t *testing.T) {
 func TestGeneric_Verify_Valid(t *testing.T) {
 	secret := "my-secret-token"
 	r := httptest.NewRequest("POST", "/", nil)
-	r.Header.Set("X-Pushup-Token", secret)
+	r.Header.Set("X-Deploq-Token", secret)
 
 	g := &Generic{}
 	if err := g.Verify(r, nil, secret); err != nil {
@@ -123,7 +123,7 @@ func TestGeneric_Verify_Valid(t *testing.T) {
 
 func TestGeneric_Verify_Invalid(t *testing.T) {
 	r := httptest.NewRequest("POST", "/", nil)
-	r.Header.Set("X-Pushup-Token", "wrong-token")
+	r.Header.Set("X-Deploq-Token", "wrong-token")
 
 	g := &Generic{}
 	if err := g.Verify(r, nil, "correct-token"); err == nil {
@@ -200,7 +200,7 @@ func TestGitHub_Verify_EmptySecret(t *testing.T) {
 
 func TestGeneric_Verify_EmptySecret(t *testing.T) {
 	r := httptest.NewRequest("POST", "/", nil)
-	r.Header.Set("X-Pushup-Token", "some-token")
+	r.Header.Set("X-Deploq-Token", "some-token")
 
 	g := &Generic{}
 	if err := g.Verify(r, nil, ""); err == nil {

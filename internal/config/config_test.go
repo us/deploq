@@ -10,7 +10,7 @@ func TestLoad_ValidConfig(t *testing.T) {
 	t.Setenv("TEST_SECRET", "this-is-a-test-secret-value-long-enough")
 
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "pushup.yaml")
+	cfgPath := filepath.Join(dir, "deploq.yaml")
 	content := `
 listen: ":9090"
 projects:
@@ -54,7 +54,7 @@ func TestLoad_DefaultComposeFile(t *testing.T) {
 	t.Setenv("TEST_SECRET", "this-is-a-test-secret-value-long-enough")
 
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "pushup.yaml")
+	cfgPath := filepath.Join(dir, "deploq.yaml")
 	content := `
 listen: ":9090"
 projects:
@@ -83,7 +83,7 @@ func TestLoad_MissingEnvVar(t *testing.T) {
 	os.Unsetenv("NONEXISTENT_VAR_12345")
 
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "pushup.yaml")
+	cfgPath := filepath.Join(dir, "deploq.yaml")
 	content := `
 listen: ":9090"
 projects:

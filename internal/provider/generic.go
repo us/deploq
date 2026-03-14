@@ -9,20 +9,20 @@ import (
 )
 
 // Generic implements the Provider interface for generic/CI webhooks.
-// Uses X-Pushup-Token header for authentication.
+// Uses X-Deploq-Token header for authentication.
 type Generic struct{}
 
 func (g *Generic) Name() string { return "generic" }
 
-// Verify checks the X-Pushup-Token header using constant-time comparison.
+// Verify checks the X-Deploq-Token header using constant-time comparison.
 func (g *Generic) Verify(r *http.Request, body []byte, secret string) error {
 	if secret == "" {
 		return fmt.Errorf("webhook secret is not configured")
 	}
 
-	token := r.Header.Get("X-Pushup-Token")
+	token := r.Header.Get("X-Deploq-Token")
 	if token == "" {
-		return fmt.Errorf("missing X-Pushup-Token header")
+		return fmt.Errorf("missing X-Deploq-Token header")
 	}
 
 	if subtle.ConstantTimeCompare([]byte(token), []byte(secret)) != 1 {

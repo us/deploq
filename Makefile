@@ -6,7 +6,7 @@ LDFLAGS  = -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.dat
 .PHONY: build test clean release lint vet
 
 build:
-	CGO_ENABLED=0 go build -ldflags '$(LDFLAGS)' -o pushup ./cmd/pushup
+	CGO_ENABLED=0 go build -ldflags '$(LDFLAGS)' -o deploq ./cmd/deploq
 
 test:
 	go test ./... -v -count=1
@@ -18,8 +18,8 @@ lint: vet
 	@which golangci-lint > /dev/null 2>&1 && golangci-lint run || echo "golangci-lint not installed, skipping"
 
 clean:
-	rm -f pushup pushup-linux-amd64
+	rm -f deploq deploq-linux-amd64
 
 release:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o pushup-linux-amd64 ./cmd/pushup
-	@echo "Built pushup-linux-amd64 ($(VERSION))"
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o deploq-linux-amd64 ./cmd/deploq
+	@echo "Built deploq-linux-amd64 ($(VERSION))"

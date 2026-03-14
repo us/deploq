@@ -1,6 +1,6 @@
 # Binary
-/pushup
-pushup-*
+/deploq
+deploq-*
 
 # OS
 .DS_Store
@@ -12,7 +12,7 @@ pushup-*
 *.swo
 
 # Config (may contain secrets)
-pushup.yaml
+/deploq.yaml
 
 # Progress tracking
 PROGRESS.md

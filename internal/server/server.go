@@ -8,11 +8,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/uscompany/pushup/internal/config"
-	"github.com/uscompany/pushup/internal/deploy"
+	"github.com/uscompany/deploq/internal/config"
+	"github.com/uscompany/deploq/internal/deploy"
 )
 
-// Server is the pushup HTTP server.
+// Server is the deploq HTTP server.
 type Server struct {
 	cfg      *config.Config
 	deployer *deploy.Deployer

@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/uscompany/pushup/internal/config"
+	"github.com/uscompany/deploq/internal/config"
 )
 
 func runValidate() error {
 	fs := flag.NewFlagSet("validate", flag.ExitOnError)
-	configPath := fs.String("config", "pushup.yaml", "path to config file")
+	configPath := fs.String("config", "deploq.yaml", "path to config file")
 	fs.Parse(os.Args[2:])
 
 	cfg, err := config.Load(*configPath)

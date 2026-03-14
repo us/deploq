@@ -7,7 +7,7 @@ import (
 )
 
 func runInit() error {
-	const filename = "pushup.yaml"
+	const filename = "deploq.yaml"
 
 	if _, err := os.Stat(filename); err == nil {
 		return fmt.Errorf("%s already exists — refusing to overwrite", filename)
@@ -28,8 +28,8 @@ func runInit() error {
 	}
 	projectName := filepath.Base(cwd)
 
-	content := fmt.Sprintf(`# pushup configuration
-# Documentation: https://github.com/uscompany/pushup
+	content := fmt.Sprintf(`# deploq configuration
+# Documentation: https://github.com/uscompany/deploq
 
 listen: ":9090"
 
@@ -37,7 +37,7 @@ projects:
   %s:
     path: "%s"
     branch: main
-    secret: "${PUSHUP_SECRET_%s}"
+    secret: "${DEPLOQ_SECRET_%s}"
     compose_file: "%s"
     # deploy_timeout: 15m  # optional, default: 15m
 `, projectName, cwd, toEnvName(projectName), composeFile)
@@ -47,7 +47,7 @@ projects:
 	}
 
 	fmt.Printf("created %s\n", filename)
-	fmt.Println("edit the file and set the required environment variables before running 'pushup serve'")
+	fmt.Println("edit the file and set the required environment variables before running 'deploq serve'")
 	return nil
 }
 

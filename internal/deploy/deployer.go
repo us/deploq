@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/uscompany/pushup/internal/config"
+	"github.com/uscompany/deploq/internal/config"
 )
 
 // Result contains the outcome of a deploy operation.

@@ -34,7 +34,7 @@ type ProjectConfig struct {
 	DeployTimeout time.Duration `yaml:"deploy_timeout"`
 }
 
-// Load reads and parses a pushup config file with env var interpolation.
+// Load reads and parses a deploq config file with env var interpolation.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
