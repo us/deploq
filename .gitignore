@@ -1,0 +1,18 @@
+# Binary
+/pushup
+pushup-*
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Config (may contain secrets)
+pushup.yaml
+
+# Progress tracking
+PROGRESS.md

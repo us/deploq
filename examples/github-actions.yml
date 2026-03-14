@@ -1,0 +1,26 @@
+# Example GitHub Actions workflow: test + deploy via pushup
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: make test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Trigger deploy
+        run: |
+          curl -fsSL -X POST https://deploy.example.com/webhook/crw-saas \
+            -H "X-Pushup-Token: ${{ secrets.PUSHUP_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"ref":"${{ github.ref }}","sha":"${{ github.sha }}"}'
