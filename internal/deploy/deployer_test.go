@@ -95,9 +95,9 @@ func TestRunFailureHook_ExecutesAndPassesEnvVars(t *testing.T) {
 	}
 
 	result := Result{
-		SHA:   "abc123",
-		Step:  "git_fetch",
-		Error: "connection refused",
+		SHA:  "abc123",
+		Step: "git_fetch",
+		Err:  fmt.Errorf("connection refused"),
 	}
 	d.runFailureHook("myproject", project, result)
 

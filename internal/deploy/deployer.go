@@ -253,11 +253,15 @@ func (d *Deployer) runFailureHook(projectName string, project *config.ProjectCon
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "sh", "-c", project.OnFailure)
+	errMsg := ""
+	if result.Err != nil {
+		errMsg = result.Err.Error()
+	}
 	cmd.Env = append(os.Environ(),
 		"DEPLOQ_PROJECT="+projectName,
 		"DEPLOQ_SHA="+result.SHA,
 		"DEPLOQ_STEP="+result.Step,
-		"DEPLOQ_ERROR="+sanitizeEnvValue(result.Error),
+		"DEPLOQ_ERROR="+sanitizeEnvValue(errMsg),
 	)
 
 	out, err := cmd.CombinedOutput()
