@@ -7,14 +7,25 @@ Receives GitHub webhooks (or generic HTTP calls from CI), pulls the latest code,
 ## Install
 
 ```bash
-# Build from source
-git clone https://github.com/us/deploq.git
-cd deploq
-make build
+# Download binary (Linux amd64)
+curl -L https://github.com/us/deploq/releases/latest/download/deploq-linux-amd64 -o deploq
+chmod +x deploq
+sudo mv deploq /usr/local/bin/
 
-# Cross-compile for Linux
-make release
-scp deploq-linux-amd64 your-server:~/deploq
+# Other platforms:
+# deploq-linux-arm64, deploq-darwin-amd64, deploq-darwin-arm64
+```
+
+Or install with Go:
+
+```bash
+go install github.com/us/deploq/cmd/deploq@latest
+```
+
+Or build from source:
+
+```bash
+git clone https://github.com/us/deploq.git && cd deploq && make build
 ```
 
 ## Quick Start
@@ -95,22 +106,56 @@ webhook received
 
 ## Production Setup
 
+### One-liner install (Linux amd64)
+
+```bash
+curl -L https://github.com/us/deploq/releases/latest/download/deploq-linux-amd64 \
+  | sudo tee /usr/local/bin/deploq > /dev/null && sudo chmod +x /usr/local/bin/deploq
+```
+
 ### systemd
 
 ```bash
-sudo cp deploq /usr/local/bin/
-sudo cp scripts/deploq.service /etc/systemd/system/
 sudo mkdir -p /etc/deploq
-sudo cp deploq.yaml /etc/deploq/
-echo "DEPLOQ_SECRET_MY_APP=your-secret" | sudo tee /etc/deploq/env
+
+# Create config
+sudo tee /etc/deploq/deploq.yaml << 'EOF'
+listen: ":9090"
+projects:
+  my-app:
+    path: /home/deploy/my-app
+    branch: main
+    secret: "${DEPLOQ_SECRET_MY_APP}"
+EOF
+
+# Create secrets
+echo "DEPLOQ_SECRET_MY_APP=$(openssl rand -hex 20)" | sudo tee /etc/deploq/env
+sudo chmod 600 /etc/deploq/env
+
+# Install service
+sudo cp scripts/deploq.service /etc/systemd/system/
 sudo systemctl enable --now deploq
 ```
 
 ### Caddy reverse proxy
 
 ```
+# Option A: dedicated subdomain
 deploy.example.com {
     reverse_proxy localhost:9090
+}
+
+# Option B: path-based routing on existing domain
+example.com {
+    handle /webhook/* {
+        reverse_proxy localhost:9090
+    }
+    handle /health {
+        reverse_proxy localhost:9090
+    }
+    handle {
+        reverse_proxy localhost:3000
+    }
 }
 ```
 
