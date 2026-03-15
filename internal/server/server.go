@@ -14,8 +14,8 @@ import (
 
 // Server is the deploq HTTP server.
 type Server struct {
-	cfg      *config.Config
-	deployer *deploy.Deployer
+	cfg        *config.Config
+	deployer   *deploy.Deployer
 	httpServer *http.Server
 }
 
@@ -29,6 +29,7 @@ func New(cfg *config.Config, deployer *deploy.Deployer) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /webhook/{project}", s.handleWebhook)
 	mux.HandleFunc("GET /health", s.handleHealth)
+	mux.HandleFunc("GET /status/{project}", s.handleStatus)
 
 	s.httpServer = &http.Server{
 		Addr:              cfg.Listen,
@@ -68,7 +69,11 @@ func (s *Server) ListenAndServe() error {
 		}
 
 		slog.Info("waiting for active deploys to complete...")
-		s.deployer.Wait()
+		deployCtx, deployCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer deployCancel()
+		if err := s.deployer.Wait(deployCtx); err != nil {
+			slog.Warn("not all deploys completed during shutdown", "error", err)
+		}
 		slog.Info("shutdown complete")
 	}
 

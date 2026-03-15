@@ -33,7 +33,8 @@ func (g *Generic) Verify(r *http.Request, body []byte, secret string) error {
 }
 
 // ParseEvent extracts ref and SHA from a generic webhook payload.
-func (g *Generic) ParseEvent(body []byte) (Event, error) {
+// eventType is accepted but generic provider always treats events as push.
+func (g *Generic) ParseEvent(body []byte, eventType string) (Event, error) {
 	var payload struct {
 		Ref string `json:"ref"`
 		SHA string `json:"sha"`
@@ -55,8 +56,9 @@ func (g *Generic) ParseEvent(body []byte) (Event, error) {
 	branch := strings.TrimPrefix(payload.Ref, "refs/heads/")
 
 	return Event{
-		Ref:    payload.Ref,
-		SHA:    payload.SHA,
-		Branch: branch,
+		Ref:       payload.Ref,
+		SHA:       payload.SHA,
+		Branch:    branch,
+		EventType: "push",
 	}, nil
 }

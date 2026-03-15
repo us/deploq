@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	"github.com/us/deploq/internal/config"
 	"github.com/us/deploq/internal/provider"
@@ -46,13 +47,13 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Detect provider
-	prov, err := provider.Detect(r)
+	prov, eventType, err := provider.Detect(r)
 	if err != nil {
 		slog.Warn("unknown webhook provider", "error", err)
 		http.Error(w, "unrecognized webhook source", http.StatusBadRequest)
 		return
 	}
-	slog.Info("webhook received", "project", projectName, "provider", prov.Name())
+	slog.Info("webhook received", "project", projectName, "provider", prov.Name(), "event_type", eventType)
 
 	// Verify signature/token
 	if err := prov.Verify(r, body, project.Secret); err != nil {
@@ -66,7 +67,7 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse event
-	event, err := prov.ParseEvent(body)
+	event, err := prov.ParseEvent(body, eventType)
 	if err != nil {
 		slog.Warn("failed to parse webhook event",
 			"project", projectName,
@@ -77,8 +78,30 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Branch filter
-	if event.Branch != project.Branch {
+	// Ping event — early return
+	if event.EventType == "ping" {
+		respondJSON(w, http.StatusOK, map[string]string{
+			"status": "pong",
+		})
+		return
+	}
+
+	// Event type filter
+	if !slices.Contains(project.Trigger, event.EventType) {
+		slog.Info("skipping unconfigured event type",
+			"project", projectName,
+			"event_type", event.EventType,
+			"configured", project.Trigger,
+		)
+		respondJSON(w, http.StatusOK, map[string]string{
+			"status": "skipped",
+			"reason": "event type not configured",
+		})
+		return
+	}
+
+	// Branch filter (skip for release events — they are tag-based)
+	if event.EventType != "release" && event.Branch != project.Branch {
 		slog.Info("skipping non-matching branch",
 			"project", projectName,
 			"got", event.Branch,
@@ -122,6 +145,30 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
+	projectName := r.PathValue("project")
+
+	if !config.ValidProjectName.MatchString(projectName) {
+		http.Error(w, "invalid project name", http.StatusBadRequest)
+		return
+	}
+
+	if _, ok := s.cfg.Projects[projectName]; !ok {
+		http.Error(w, "project not found", http.StatusNotFound)
+		return
+	}
+
+	result := s.deployer.Status(projectName)
+	if result == nil {
+		respondJSON(w, http.StatusOK, map[string]string{
+			"status": "no deploys yet",
+		})
+		return
+	}
+
+	respondJSON(w, http.StatusOK, result)
+}
+
 func respondJSON(w http.ResponseWriter, status int, data any) {
 	buf, err := json.Marshal(data)
 	if err != nil {
@@ -131,5 +178,7 @@ func respondJSON(w http.ResponseWriter, status int, data any) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	w.Write(buf)
+	if _, err := w.Write(buf); err != nil {
+		slog.Warn("failed to write response", "error", err)
+	}
 }

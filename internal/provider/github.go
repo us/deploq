@@ -46,8 +46,21 @@ func (g *GitHub) Verify(r *http.Request, body []byte, secret string) error {
 	return nil
 }
 
-// ParseEvent extracts ref and SHA from a GitHub push event payload.
-func (g *GitHub) ParseEvent(body []byte) (Event, error) {
+// ParseEvent extracts event data based on eventType.
+func (g *GitHub) ParseEvent(body []byte, eventType string) (Event, error) {
+	switch eventType {
+	case "push":
+		return g.parsePushEvent(body)
+	case "release":
+		return g.parseReleaseEvent(body)
+	case "ping":
+		return Event{EventType: "ping"}, nil
+	default:
+		return Event{}, fmt.Errorf("unsupported event type: %q", eventType)
+	}
+}
+
+func (g *GitHub) parsePushEvent(body []byte) (Event, error) {
 	var payload struct {
 		Ref   string `json:"ref"`
 		After string `json:"after"`
@@ -69,8 +82,43 @@ func (g *GitHub) ParseEvent(body []byte) (Event, error) {
 	branch := strings.TrimPrefix(payload.Ref, "refs/heads/")
 
 	return Event{
-		Ref:    payload.Ref,
-		SHA:    payload.After,
-		Branch: branch,
+		Ref:       payload.Ref,
+		SHA:       payload.After,
+		Branch:    branch,
+		EventType: "push",
+	}, nil
+}
+
+func (g *GitHub) parseReleaseEvent(body []byte) (Event, error) {
+	var payload struct {
+		Action  string `json:"action"`
+		Release struct {
+			TagName         string `json:"tag_name"`
+			TargetCommitish string `json:"target_commitish"`
+		} `json:"release"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return Event{}, fmt.Errorf("parsing github release payload: %w", err)
+	}
+
+	if payload.Action != "published" {
+		return Event{}, fmt.Errorf("ignoring release action %q (only published supported)", payload.Action)
+	}
+	if payload.Release.TagName == "" {
+		return Event{}, fmt.Errorf("missing tag_name in release payload")
+	}
+	if err := ValidateTagName(payload.Release.TagName); err != nil {
+		return Event{}, fmt.Errorf("release payload: %w", err)
+	}
+	if payload.Release.TargetCommitish != "" {
+		if err := ValidateRefName(payload.Release.TargetCommitish); err != nil {
+			return Event{}, fmt.Errorf("release payload: %w", err)
+		}
+	}
+
+	return Event{
+		Ref:       "refs/tags/" + payload.Release.TagName,
+		Branch:    payload.Release.TargetCommitish,
+		EventType: "release",
 	}, nil
 }

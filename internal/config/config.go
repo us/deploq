@@ -2,9 +2,11 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -16,10 +18,15 @@ var ValidProjectName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 var validBranchName = regexp.MustCompile(`^[a-zA-Z0-9/_.-]+$`)
 
 const (
-	DefaultComposeFile  = "docker-compose.yml"
+	DefaultComposeFile   = "docker-compose.yml"
 	DefaultDeployTimeout = 15 * time.Minute
-	MinSecretLength     = 16
+	MinSecretLength      = 16
 )
+
+var validTriggerTypes = map[string]bool{
+	"push":    true,
+	"release": true,
+}
 
 type Config struct {
 	Listen   string                    `yaml:"listen"`
@@ -27,11 +34,15 @@ type Config struct {
 }
 
 type ProjectConfig struct {
-	Path          string        `yaml:"path"`
-	Branch        string        `yaml:"branch"`
-	Secret        string        `yaml:"secret"`
-	ComposeFile   string        `yaml:"compose_file"`
-	DeployTimeout time.Duration `yaml:"deploy_timeout"`
+	Path                string        `yaml:"path"`
+	Branch              string        `yaml:"branch"`
+	Secret              string        `yaml:"secret"`
+	ComposeFile         string        `yaml:"compose_file"`
+	DeployTimeout       time.Duration `yaml:"deploy_timeout"`
+	Trigger             []string      `yaml:"trigger"`
+	OnFailure           string        `yaml:"on_failure"`
+	RequireStatusChecks bool          `yaml:"require_status_checks"`
+	StatusCheckMaxWait  time.Duration `yaml:"status_check_max_wait"`
 }
 
 // Load reads and parses a deploq config file with env var interpolation.
@@ -59,6 +70,12 @@ func Load(path string) (*Config, error) {
 		}
 		if p.DeployTimeout == 0 {
 			p.DeployTimeout = DefaultDeployTimeout
+		}
+		if len(p.Trigger) == 0 {
+			p.Trigger = []string{"push"}
+		}
+		if p.StatusCheckMaxWait == 0 {
+			p.StatusCheckMaxWait = 5 * time.Minute
 		}
 	}
 
@@ -97,6 +114,24 @@ func (c *Config) Validate() error {
 		}
 		if p.DeployTimeout <= 0 {
 			return fmt.Errorf("project %q: deploy_timeout must be positive", name)
+		}
+		for _, t := range p.Trigger {
+			if !validTriggerTypes[t] {
+				return fmt.Errorf("project %q: invalid trigger type %q (allowed: push, release)", name, t)
+			}
+		}
+		if p.RequireStatusChecks {
+			if p.StatusCheckMaxWait <= 0 {
+				return fmt.Errorf("project %q: status_check_max_wait must be positive when require_status_checks is true", name)
+			}
+			if p.StatusCheckMaxWait >= p.DeployTimeout {
+				return fmt.Errorf("project %q: status_check_max_wait (%v) must be less than deploy_timeout (%v)", name, p.StatusCheckMaxWait, p.DeployTimeout)
+			}
+			if slices.Contains(p.Trigger, "release") {
+				slog.Warn("require_status_checks with release trigger: CI check will be skipped for release events (no SHA available)",
+					"project", name,
+				)
+			}
 		}
 	}
 
