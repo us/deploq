@@ -2,6 +2,13 @@
 
 All notable changes to deploq are documented here.
 
+## [0.0.4](https://github.com/us/deploq/compare/v0.0.3...v0.0.4) (2026-03-15)
+
+
+### Bug Fixes
+
+* pass error message to on_failure hook via DEPLOQ_ERROR env var ([2dacece](https://github.com/us/deploq/commit/2dacececb39c37440a4ce76c80b0fb49b943d911))
+
 ## v0.0.3
 
 - **Event Type Filtering** — Configure which webhook events trigger deploys via `trigger: [push, release]`. Ping events return 200 pong. Unsupported event types are rejected.
