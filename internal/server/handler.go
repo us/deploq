@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/uscompany/deploq/internal/config"
-	"github.com/uscompany/deploq/internal/provider"
+	"github.com/us/deploq/internal/config"
+	"github.com/us/deploq/internal/provider"
 )
 
 const maxBodySize = 1 << 20 // 1 MB

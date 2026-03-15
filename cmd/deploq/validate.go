@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/uscompany/deploq/internal/config"
+	"github.com/us/deploq/internal/config"
 )
 
 func runValidate() error {

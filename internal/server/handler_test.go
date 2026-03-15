@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uscompany/deploq/internal/config"
-	"github.com/uscompany/deploq/internal/deploy"
+	"github.com/us/deploq/internal/config"
+	"github.com/us/deploq/internal/deploy"
 )
 
 func testConfig() *config.Config {

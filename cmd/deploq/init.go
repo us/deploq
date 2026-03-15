@@ -29,7 +29,7 @@ func runInit() error {
 	projectName := filepath.Base(cwd)
 
 	content := fmt.Sprintf(`# deploq configuration
-# Documentation: https://github.com/uscompany/deploq
+# Documentation: https://github.com/us/deploq
 
 listen: ":9090"
 

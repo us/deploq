@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/uscompany/deploq/internal/config"
-	"github.com/uscompany/deploq/internal/deploy"
-	"github.com/uscompany/deploq/internal/server"
+	"github.com/us/deploq/internal/config"
+	"github.com/us/deploq/internal/deploy"
+	"github.com/us/deploq/internal/server"
 )
 
 func runServe() error {

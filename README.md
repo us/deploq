@@ -8,7 +8,7 @@ Receives GitHub webhooks (or generic HTTP calls from CI), pulls the latest code,
 
 ```bash
 # Build from source
-git clone https://github.com/uscompany/deploq.git
+git clone https://github.com/us/deploq.git
 cd deploq
 make build
 

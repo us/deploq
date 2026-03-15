@@ -1,4 +1,4 @@
-module github.com/uscompany/deploq
+module github.com/us/deploq
 
 go 1.25.7
 
