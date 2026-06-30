@@ -223,7 +223,13 @@ func (d *Deployer) runDeployCommand(ctx context.Context, projectName string, pro
 
 	cmd := exec.CommandContext(ctx, "sh", "-c", project.DeployCommand)
 	cmd.Dir = project.Path
-	cmd.Env = os.Environ()
+	// Expose the resolved project + SHA so the deploy script can tag images,
+	// create deployments, or notify without re-running `git rev-parse`. Mirrors
+	// the env the OnFailure hook injects.
+	cmd.Env = append(os.Environ(),
+		"DEPLOQ_PROJECT="+projectName,
+		"DEPLOQ_SHA="+sha,
+	)
 
 	out := newLimitedWriter()
 	errOut := newLimitedWriter()
