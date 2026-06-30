@@ -34,13 +34,21 @@ type Config struct {
 }
 
 type ProjectConfig struct {
-	Path                string        `yaml:"path"`
-	Branch              string        `yaml:"branch"`
-	Secret              string        `yaml:"secret"`
-	ComposeFile         string        `yaml:"compose_file"`
-	DeployTimeout       time.Duration `yaml:"deploy_timeout"`
-	Trigger             []string      `yaml:"trigger"`
-	OnFailure           string        `yaml:"on_failure"`
+	Path          string        `yaml:"path"`
+	Branch        string        `yaml:"branch"`
+	Secret        string        `yaml:"secret"`
+	ComposeFile   string        `yaml:"compose_file"`
+	DeployTimeout time.Duration `yaml:"deploy_timeout"`
+	Trigger       []string      `yaml:"trigger"`
+	// OnFailure is an optional shell command run via "sh -c" when a deploy fails.
+	// It receives DEPLOQ_PROJECT, DEPLOQ_SHA, DEPLOQ_STEP, and DEPLOQ_ERROR env vars.
+	OnFailure string `yaml:"on_failure"`
+	// DeployCommand, when non-empty, replaces the built-in "docker compose build" +
+	// "docker compose up" steps with a custom shell command run via "sh -c".
+	// The command runs with the project path as the working directory and inherits
+	// the deploq process environment. A non-zero exit code fails the deploy.
+	// When empty (the default), the built-in compose steps are used unchanged.
+	DeployCommand       string        `yaml:"deploy_command"`
 	RequireStatusChecks bool          `yaml:"require_status_checks"`
 	StatusCheckMaxWait  time.Duration `yaml:"status_check_max_wait"`
 }

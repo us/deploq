@@ -113,6 +113,65 @@ func TestRunFailureHook_ExecutesAndPassesEnvVars(t *testing.T) {
 	}
 }
 
+func TestRunDeployCommand_Success(t *testing.T) {
+	cfg := &config.Config{
+		Listen:   ":9090",
+		Projects: map[string]*config.ProjectConfig{},
+	}
+	d := New(cfg)
+
+	dir := t.TempDir()
+	outFile := filepath.Join(dir, "ran.txt")
+	project := &config.ProjectConfig{
+		Path:          dir,
+		DeployCommand: fmt.Sprintf("echo ok > %s", outFile),
+	}
+
+	result := d.runDeployCommand(t.Context(), "test", project, "abc123")
+	if result.Err != nil {
+		t.Fatalf("expected success, got error: %v (step=%s)", result.Err, result.Step)
+	}
+	if result.Step != "done" {
+		t.Errorf("Step = %q, want %q", result.Step, "done")
+	}
+	if result.SHA != "abc123" {
+		t.Errorf("SHA = %q, want %q", result.SHA, "abc123")
+	}
+
+	data, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatalf("deploy command did not create output file: %v", err)
+	}
+	if !strings.Contains(string(data), "ok") {
+		t.Errorf("unexpected output file contents: %q", string(data))
+	}
+}
+
+func TestRunDeployCommand_Failure(t *testing.T) {
+	cfg := &config.Config{
+		Listen:   ":9090",
+		Projects: map[string]*config.ProjectConfig{},
+	}
+	d := New(cfg)
+
+	dir := t.TempDir()
+	project := &config.ProjectConfig{
+		Path:          dir,
+		DeployCommand: "exit 1",
+	}
+
+	result := d.runDeployCommand(t.Context(), "test", project, "abc123")
+	if result.Err == nil {
+		t.Fatal("expected error from failing deploy command, got nil")
+	}
+	if result.Step != "deploy_command" {
+		t.Errorf("Step = %q, want %q", result.Step, "deploy_command")
+	}
+	if result.SHA != "abc123" {
+		t.Errorf("SHA = %q, want %q", result.SHA, "abc123")
+	}
+}
+
 func TestSanitizeEnvValue(t *testing.T) {
 	tests := []struct {
 		name  string
