@@ -182,6 +182,11 @@ func (d *Deployer) run(ctx context.Context, projectName string, project *config.
 		return Result{Step: "git_sha", Err: err}
 	}
 
+	// Steps 4+5: custom deploy command OR built-in docker compose build+up.
+	if project.DeployCommand != "" {
+		return d.runDeployCommand(ctx, projectName, project, sha)
+	}
+
 	// Step 4: docker compose build
 	slog.Info("docker compose build", "project", projectName)
 	output, err = ComposeBuild(ctx, project.Path, project.ComposeFile)
@@ -206,6 +211,34 @@ func (d *Deployer) run(ctx context.Context, projectName string, project *config.
 		return Result{SHA: sha, Step: "compose_up", Err: err}
 	}
 
+	return Result{SHA: sha, Step: "done"}
+}
+
+// runDeployCommand executes project.DeployCommand in place of the built-in compose steps.
+// It runs the command via "sh -c" with project.Path as the working directory and the
+// deploq process environment. stdout and stderr are captured and logged on failure.
+// A non-zero exit code is a failed deploy (Step: "deploy_command").
+func (d *Deployer) runDeployCommand(ctx context.Context, projectName string, project *config.ProjectConfig, sha string) Result {
+	slog.Info("deploy command", "project", projectName, "cmd", project.DeployCommand)
+
+	cmd := exec.CommandContext(ctx, "sh", "-c", project.DeployCommand)
+	cmd.Dir = project.Path
+	cmd.Env = os.Environ()
+
+	out := newLimitedWriter()
+	errOut := newLimitedWriter()
+	cmd.Stdout = out
+	cmd.Stderr = errOut
+
+	if err := cmd.Run(); err != nil {
+		combined := out.String() + errOut.String()
+		slog.Error("deploy command failed",
+			"project", projectName,
+			"sha", sha,
+			"output", combined,
+		)
+		return Result{SHA: sha, Step: "deploy_command", Err: err}
+	}
 	return Result{SHA: sha, Step: "done"}
 }
 

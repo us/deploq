@@ -329,6 +329,40 @@ func TestValidate_ComposeFilePathTraversal(t *testing.T) {
 	}
 }
 
+func TestLoad_DeployCommand(t *testing.T) {
+	t.Setenv("TEST_SECRET", "this-is-a-test-secret-value-long-enough")
+
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "deploq.yaml")
+	content := `
+listen: ":9090"
+projects:
+  my-app:
+    path: /tmp/my-app
+    branch: main
+    secret: "${TEST_SECRET}"
+    deploy_command: ./scripts/rolling-deploy.sh
+`
+	os.WriteFile(cfgPath, []byte(content), 0644)
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	p, ok := cfg.Projects["my-app"]
+	if !ok {
+		t.Fatal("project my-app not found")
+	}
+	if p.DeployCommand != "./scripts/rolling-deploy.sh" {
+		t.Errorf("DeployCommand = %q, want %q", p.DeployCommand, "./scripts/rolling-deploy.sh")
+	}
+	// compose_file should still get the default even when deploy_command is set
+	if p.ComposeFile != DefaultComposeFile {
+		t.Errorf("ComposeFile = %q, want default %q", p.ComposeFile, DefaultComposeFile)
+	}
+}
+
 func TestInterpolateEnv(t *testing.T) {
 	t.Setenv("FOO", "bar")
 	t.Setenv("BAZ", "qux")
