@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -65,64 +66,89 @@ func New(cfg *config.Config) *Deployer {
 // Deploy starts an async deploy for the given project. Returns immediately.
 // The deploy runs with its own background context (independent of the caller)
 // so it is not cancelled when the HTTP connection closes.
-func (d *Deployer) Deploy(projectName string, project *config.ProjectConfig, sha string) (isDuplicate bool, isLocked bool) {
-	unlock, duplicate, acquired := d.locker.TryLock(projectName, sha)
+//
+// isCoalesced is true when a deploy was already running: instead of dropping
+// this webhook, the running deploy is flagged to rerun once it finishes, which
+// git-resets to origin/main HEAD (the latest commit). Piled-up webhooks thus
+// collapse to a single final deploy of the newest commit.
+func (d *Deployer) Deploy(projectName string, project *config.ProjectConfig, sha string) (isDuplicate bool, isCoalesced bool) {
+	acquired, duplicate := d.locker.TryAcquire(projectName, sha)
 	if duplicate {
 		slog.Info("skipping duplicate sha", "project", projectName, "sha", sha)
 		return true, false
 	}
 	if !acquired {
-		slog.Warn("deploy already in progress", "project", projectName)
-		return false, true
+		// A deploy is in progress — coalesce this request onto it rather than
+		// dropping it. MarkPending can only fail if the slot freed in the race
+		// window since TryAcquire; retry once to start a fresh deploy then.
+		if d.locker.MarkPending(projectName, sha) {
+			slog.Info("deploy in progress; coalesced (will redeploy latest)", "project", projectName, "sha", sha)
+			return false, true
+		}
+		acquired, duplicate = d.locker.TryAcquire(projectName, sha)
+		if duplicate {
+			return true, false
+		}
+		if !acquired {
+			// Lost the retry race to another goroutine that just acquired; it
+			// will pick up our pending flag. Treat as coalesced.
+			d.locker.MarkPending(projectName, sha)
+			return false, true
+		}
 	}
 
 	d.wg.Add(1)
 	go func() {
 		defer d.wg.Done()
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("deploy goroutine panicked",
-					"project", projectName,
-					"panic", r,
-				)
-				unlock(false)
-				d.setStatus(projectName, Result{
-					SHA:  sha,
-					Step: "panic",
-					Err:  fmt.Errorf("internal panic: %v", r),
-				})
+		// nextSHA carries a SHA into the run for the optional CI status-check
+		// gate + duplicate recording. run() always git-resets to origin/main
+		// HEAD regardless, so it deploys the latest commit; the first iteration
+		// passes the webhook SHA and reruns pass the pending (newer) SHA.
+		nextSHA := sha
+		for {
+			result := d.runGuarded(projectName, project, nextSHA)
+			next, rerun := d.locker.FinishOrRerun(projectName, result.SHA, result.Err == nil)
+			if !rerun {
+				return
 			}
-		}()
-
-		deployCtx, cancel := context.WithTimeout(context.Background(), project.DeployTimeout)
-		defer cancel()
-
-		result := d.run(deployCtx, projectName, project, sha)
-		unlock(result.Err == nil)
-		d.setStatus(projectName, result)
-
-		if result.Err != nil {
-			slog.Error("deploy failed",
-				"project", projectName,
-				"step", result.Step,
-				"error", result.Err,
-			)
-			d.runFailureHook(projectName, project, result)
-		} else {
-			slog.Info("deploy completed",
-				"project", projectName,
-				"sha", result.SHA,
-			)
+			slog.Info("coalesced redeploy: newer commit pending", "project", projectName, "sha", next)
+			nextSHA = next
 		}
 	}()
 
 	return false, false
 }
 
+// runGuarded runs one deploy iteration under its own timeout context and records
+// its status. A panic anywhere in run/setStatus/failure-hook is recovered into a
+// failed Result so the caller's loop always reaches FinishOrRerun and releases
+// the single-flight slot (a panic can never wedge a project's deploys).
+func (d *Deployer) runGuarded(projectName string, project *config.ProjectConfig, sha string) (result Result) {
+	deployCtx, cancel := context.WithTimeout(context.Background(), project.DeployTimeout)
+	defer cancel()
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("deploy goroutine panicked", "project", projectName, "panic", r)
+			result = Result{SHA: sha, Step: "panic", Err: fmt.Errorf("internal panic: %v", r)}
+			d.setStatus(projectName, result)
+		}
+	}()
+
+	result = d.run(deployCtx, projectName, project, sha)
+	d.setStatus(projectName, result)
+	if result.Err != nil {
+		slog.Error("deploy failed", "project", projectName, "step", result.Step, "error", result.Err)
+		d.runFailureHook(projectName, project, result)
+	} else {
+		slog.Info("deploy completed", "project", projectName, "sha", result.SHA)
+	}
+	return result
+}
+
 // DeploySync executes a synchronous deploy with lock protection.
 // Used by the CLI deploy command.
 func (d *Deployer) DeploySync(ctx context.Context, projectName string, project *config.ProjectConfig) Result {
-	unlock, duplicate, acquired := d.locker.TryLock(projectName, "")
+	acquired, duplicate := d.locker.TryAcquire(projectName, "")
 	if duplicate {
 		return Result{Step: "lock", Err: fmt.Errorf("duplicate SHA")}
 	}
@@ -130,7 +156,8 @@ func (d *Deployer) DeploySync(ctx context.Context, projectName string, project *
 		return Result{Step: "lock", Err: fmt.Errorf("deploy already in progress")}
 	}
 	result := d.run(ctx, projectName, project, "")
-	unlock(result.Err == nil)
+	// CLI is one-shot: no webhooks can set pending, so the rerun signal is moot.
+	d.locker.FinishOrRerun(projectName, result.SHA, result.Err == nil)
 	d.setStatus(projectName, result)
 	return result
 }
@@ -235,8 +262,14 @@ func (d *Deployer) runDeployCommand(ctx context.Context, projectName string, pro
 	errOut := newLimitedWriter()
 	cmd.Stdout = out
 	cmd.Stderr = errOut
+	configureProcessGroup(cmd)
 
-	if err := cmd.Run(); err != nil {
+	// exec.ErrWaitDelay means the command exited 0 (no timeout/Cancel) but a
+	// child it backgrounded still held the stdout/stderr pipe past WaitDelay.
+	// That is a successful deploy whose script spawned a lingering process — not
+	// a failure — so don't fail the deploy on it. A real timeout instead fires
+	// Cancel and Wait returns the kill error, which is NOT ErrWaitDelay.
+	if err := cmd.Run(); err != nil && !errors.Is(err, exec.ErrWaitDelay) {
 		combined := out.String() + errOut.String()
 		slog.Error("deploy command failed",
 			"project", projectName,
@@ -244,6 +277,10 @@ func (d *Deployer) runDeployCommand(ctx context.Context, projectName string, pro
 			"output", combined,
 		)
 		return Result{SHA: sha, Step: "deploy_command", Err: err}
+	} else if err != nil {
+		slog.Warn("deploy command exited 0 but backgrounded a process holding stdout; "+
+			"redirect its fds (e.g. `>/dev/null 2>&1 &`) to avoid a WaitDelay stall",
+			"project", projectName, "sha", sha)
 	}
 	return Result{SHA: sha, Step: "done"}
 }
@@ -302,9 +339,10 @@ func (d *Deployer) runFailureHook(projectName string, project *config.ProjectCon
 		"DEPLOQ_STEP="+result.Step,
 		"DEPLOQ_ERROR="+sanitizeEnvValue(errMsg),
 	)
+	configureProcessGroup(cmd)
 
 	out, err := cmd.CombinedOutput()
-	if err != nil {
+	if err != nil && !errors.Is(err, exec.ErrWaitDelay) {
 		slog.Error("on_failure hook failed",
 			"project", projectName,
 			"error", err,
