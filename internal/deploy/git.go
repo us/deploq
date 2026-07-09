@@ -3,6 +3,7 @@ package deploy
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -44,8 +45,11 @@ func runCommand(ctx context.Context, dir string, args ...string) (stdout, stderr
 	cmd.Dir = dir
 	cmd.Stdout = io.Writer(out)
 	cmd.Stderr = io.Writer(errOut)
+	configureProcessGroup(cmd)
 
-	if err := cmd.Run(); err != nil {
+	// A clean exit whose backgrounded child held the pipe past WaitDelay
+	// (exec.ErrWaitDelay) is a success, not a command failure.
+	if err := cmd.Run(); err != nil && !errors.Is(err, exec.ErrWaitDelay) {
 		return out.String(), errOut.String(), err
 	}
 	return out.String(), errOut.String(), nil

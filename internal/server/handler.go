@@ -115,7 +115,7 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Start deploy (async)
-	isDuplicate, isLocked := s.deployer.Deploy(projectName, project, event.SHA)
+	isDuplicate, isCoalesced := s.deployer.Deploy(projectName, project, event.SHA)
 
 	if isDuplicate {
 		respondJSON(w, http.StatusOK, map[string]string{
@@ -125,10 +125,13 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if isLocked {
-		respondJSON(w, http.StatusConflict, map[string]string{
-			"status": "rejected",
-			"reason": "deploy already in progress",
+	if isCoalesced {
+		// A deploy is already running; this request was coalesced onto it and
+		// the in-flight deploy will rerun against the latest commit when it
+		// finishes. Accepted (not rejected) — the newest commit still ships.
+		respondJSON(w, http.StatusAccepted, map[string]string{
+			"status": "coalesced",
+			"reason": "deploy in progress; latest will be deployed",
 		})
 		return
 	}
