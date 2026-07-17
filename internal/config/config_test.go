@@ -240,14 +240,16 @@ func TestValidate_RequireStatusChecks(t *testing.T) {
 		Listen: ":9090",
 		Projects: map[string]*ProjectConfig{
 			"app": {
-				Path:                "/tmp/app",
-				Branch:              "main",
-				Secret:              "this-is-long-enough-secret",
-				ComposeFile:         "docker-compose.yml",
-				DeployTimeout:       DefaultDeployTimeout,
-				Trigger:             []string{"push"},
-				RequireStatusChecks: true,
-				StatusCheckMaxWait:  10 * time.Minute,
+				Path:                   "/tmp/app",
+				Branch:                 "main",
+				Secret:                 "this-is-long-enough-secret",
+				ComposeFile:            "docker-compose.yml",
+				DeployTimeout:          DefaultDeployTimeout,
+				Trigger:                []string{"push"},
+				RequireStatusChecks:    true,
+				StatusCheckMaxWait:     10 * time.Minute,
+				ChecksDiscoveryTimeout: 2 * time.Minute,
+				RequiredCheckNames:     []string{"verify", "build"},
 			},
 		},
 	}
@@ -256,19 +258,67 @@ func TestValidate_RequireStatusChecks(t *testing.T) {
 	}
 }
 
+func TestValidate_RequireStatusChecks_MissingAllowlist(t *testing.T) {
+	cfg := &Config{
+		Listen: ":9090",
+		Projects: map[string]*ProjectConfig{
+			"app": {
+				Path:                   "/tmp/app",
+				Branch:                 "main",
+				Secret:                 "this-is-long-enough-secret",
+				ComposeFile:            "docker-compose.yml",
+				DeployTimeout:          DefaultDeployTimeout,
+				Trigger:                []string{"push"},
+				RequireStatusChecks:    true,
+				StatusCheckMaxWait:     10 * time.Minute,
+				ChecksDiscoveryTimeout: 2 * time.Minute,
+				// RequiredCheckNames omitted → must error.
+			},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Error("expected error when required_check_names is empty")
+	}
+}
+
+func TestValidate_ChecksDiscovery_ExceedsMaxWait(t *testing.T) {
+	cfg := &Config{
+		Listen: ":9090",
+		Projects: map[string]*ProjectConfig{
+			"app": {
+				Path:                   "/tmp/app",
+				Branch:                 "main",
+				Secret:                 "this-is-long-enough-secret",
+				ComposeFile:            "docker-compose.yml",
+				DeployTimeout:          DefaultDeployTimeout,
+				Trigger:                []string{"push"},
+				RequireStatusChecks:    true,
+				StatusCheckMaxWait:     5 * time.Minute,
+				ChecksDiscoveryTimeout: 10 * time.Minute, // >= max_wait → error
+				RequiredCheckNames:     []string{"verify"},
+			},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Error("expected error when checks_discovery_timeout >= status_check_max_wait")
+	}
+}
+
 func TestValidate_StatusCheckMaxWait_ExceedsDeployTimeout(t *testing.T) {
 	cfg := &Config{
 		Listen: ":9090",
 		Projects: map[string]*ProjectConfig{
 			"app": {
-				Path:                "/tmp/app",
-				Branch:              "main",
-				Secret:              "this-is-long-enough-secret",
-				ComposeFile:         "docker-compose.yml",
-				DeployTimeout:       5 * time.Minute,
-				Trigger:             []string{"push"},
-				RequireStatusChecks: true,
-				StatusCheckMaxWait:  10 * time.Minute,
+				Path:                   "/tmp/app",
+				Branch:                 "main",
+				Secret:                 "this-is-long-enough-secret",
+				ComposeFile:            "docker-compose.yml",
+				DeployTimeout:          5 * time.Minute,
+				Trigger:                []string{"push"},
+				RequireStatusChecks:    true,
+				StatusCheckMaxWait:     10 * time.Minute,
+				ChecksDiscoveryTimeout: 2 * time.Minute,
+				RequiredCheckNames:     []string{"verify"},
 			},
 		},
 	}

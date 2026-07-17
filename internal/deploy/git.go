@@ -73,6 +73,20 @@ func GitReset(ctx context.Context, dir, branch string) (string, error) {
 	return "", nil
 }
 
+// GitResetToSHA runs git reset --hard <sha> in the given directory. Used on the
+// CI-gated path so the deploy lands on the EXACT commit whose checks were
+// verified, not whatever origin/<branch> advanced to during the CI wait (the
+// TOCTOU that would otherwise let an ungated commit ship). Callers must only use
+// this with a non-empty, validated SHA; empty-SHA paths (release, CLI) keep
+// GitReset(branch).
+func GitResetToSHA(ctx context.Context, dir, sha string) (string, error) {
+	_, stderr, err := runCommand(ctx, dir, "git", "reset", "--hard", sha)
+	if err != nil {
+		return stderr, fmt.Errorf("git reset to %s: %w", sha, err)
+	}
+	return "", nil
+}
+
 // GitCurrentSHA returns the current HEAD SHA in the given directory.
 func GitCurrentSHA(ctx context.Context, dir string) (string, error) {
 	stdout, _, err := runCommand(ctx, dir, "git", "rev-parse", "HEAD")

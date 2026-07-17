@@ -51,6 +51,15 @@ type ProjectConfig struct {
 	DeployCommand       string        `yaml:"deploy_command"`
 	RequireStatusChecks bool          `yaml:"require_status_checks"`
 	StatusCheckMaxWait  time.Duration `yaml:"status_check_max_wait"`
+	// ChecksDiscoveryTimeout is how long to wait for all RequiredCheckNames to
+	// first appear before failing closed (a commit that spawned no gated
+	// workflow). Nested inside StatusCheckMaxWait. Defaults to 2m.
+	ChecksDiscoveryTimeout time.Duration `yaml:"checks_discovery_timeout"`
+	// RequiredCheckNames is the allowlist of check-run names that gate the
+	// deploy. Only these are evaluated; every other check-run is ignored, so an
+	// unrelated job's flake cannot block a deploy. Required (non-empty) when
+	// RequireStatusChecks is true.
+	RequiredCheckNames []string `yaml:"required_check_names"`
 }
 
 // Load reads and parses a deploq config file with env var interpolation.
@@ -84,6 +93,9 @@ func Load(path string) (*Config, error) {
 		}
 		if p.StatusCheckMaxWait == 0 {
 			p.StatusCheckMaxWait = 5 * time.Minute
+		}
+		if p.ChecksDiscoveryTimeout == 0 {
+			p.ChecksDiscoveryTimeout = 2 * time.Minute
 		}
 	}
 
@@ -129,11 +141,25 @@ func (c *Config) Validate() error {
 			}
 		}
 		if p.RequireStatusChecks {
+			if len(p.RequiredCheckNames) == 0 {
+				return fmt.Errorf("project %q: required_check_names must be non-empty when require_status_checks is true", name)
+			}
+			for _, cn := range p.RequiredCheckNames {
+				if strings.TrimSpace(cn) == "" {
+					return fmt.Errorf("project %q: required_check_names must not contain empty entries", name)
+				}
+			}
 			if p.StatusCheckMaxWait <= 0 {
 				return fmt.Errorf("project %q: status_check_max_wait must be positive when require_status_checks is true", name)
 			}
 			if p.StatusCheckMaxWait >= p.DeployTimeout {
 				return fmt.Errorf("project %q: status_check_max_wait (%v) must be less than deploy_timeout (%v)", name, p.StatusCheckMaxWait, p.DeployTimeout)
+			}
+			if p.ChecksDiscoveryTimeout <= 0 {
+				return fmt.Errorf("project %q: checks_discovery_timeout must be positive when require_status_checks is true", name)
+			}
+			if p.ChecksDiscoveryTimeout >= p.StatusCheckMaxWait {
+				return fmt.Errorf("project %q: checks_discovery_timeout (%v) must be less than status_check_max_wait (%v)", name, p.ChecksDiscoveryTimeout, p.StatusCheckMaxWait)
 			}
 			if slices.Contains(p.Trigger, "release") {
 				slog.Warn("require_status_checks with release trigger: CI check will be skipped for release events (no SHA available)",
