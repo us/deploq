@@ -193,3 +193,30 @@ func TestSanitizeEnvValue(t *testing.T) {
 		})
 	}
 }
+
+func TestIsGated(t *testing.T) {
+	tok := true
+	noTok := false
+	cases := []struct {
+		name     string
+		require  bool
+		sha      string
+		hasCheck bool
+		want     bool
+	}{
+		{"gated: opted-in + sha + token", true, "abc123", tok, true},
+		{"not gated: opted out", false, "abc123", tok, false},
+		{"not gated: empty sha (release/CLI)", true, "", tok, false},
+		{"not gated: no token", true, "abc123", noTok, false},
+		{"not gated: none", false, "", noTok, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			p := &config.ProjectConfig{RequireStatusChecks: c.require}
+			if got := isGated(p, c.sha, c.hasCheck); got != c.want {
+				t.Errorf("isGated(require=%v, sha=%q, hasCheck=%v) = %v, want %v",
+					c.require, c.sha, c.hasCheck, got, c.want)
+			}
+		})
+	}
+}

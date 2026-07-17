@@ -101,9 +101,11 @@ func (d *Deployer) Deploy(projectName string, project *config.ProjectConfig, sha
 	go func() {
 		defer d.wg.Done()
 		// nextSHA carries a SHA into the run for the optional CI status-check
-		// gate + duplicate recording. run() always git-resets to origin/main
-		// HEAD regardless, so it deploys the latest commit; the first iteration
-		// passes the webhook SHA and reruns pass the pending (newer) SHA.
+		// gate + duplicate recording. On the GATED path run() resets to that
+		// EXACT SHA (see run() Step 2) so the deploy lands on the commit whose
+		// checks were verified; on every other path it resets to origin/<branch>
+		// HEAD. The first iteration passes the webhook SHA; reruns pass the
+		// pending (newer) SHA, so each coalesced commit is gated on its own.
 		nextSHA := sha
 		for {
 			result := d.runGuarded(projectName, project, nextSHA)
@@ -162,6 +164,15 @@ func (d *Deployer) DeploySync(ctx context.Context, projectName string, project *
 	return result
 }
 
+// isGated reports whether this deploy must reset to the EXACT verified SHA (the
+// CI-gated path) rather than to the branch tip. Gated requires all three: the
+// project opted in, a concrete SHA to gate on (release/CLI pass ""), and a
+// status checker (token) to gate with. Only the gated path uses GitResetToSHA;
+// every other path keeps the branch reset, so release + CLI deploys are unaffected.
+func isGated(project *config.ProjectConfig, webhookSHA string, hasChecker bool) bool {
+	return project.RequireStatusChecks && webhookSHA != "" && hasChecker
+}
+
 // run executes the deploy pipeline synchronously without locking.
 func (d *Deployer) run(ctx context.Context, projectName string, project *config.ProjectConfig, webhookSHA string) Result {
 	slog.Info("starting deploy", "project", projectName, "path", project.Path, "branch", project.Branch)
@@ -175,16 +186,18 @@ func (d *Deployer) run(ctx context.Context, projectName string, project *config.
 			"project", projectName,
 		)
 	}
-	if project.RequireStatusChecks && webhookSHA != "" && d.statusChecker != nil {
-		slog.Info("waiting for CI status checks", "project", projectName, "sha", webhookSHA)
+	gated := isGated(project, webhookSHA, d.statusChecker != nil)
+	if gated {
+		slog.Info("waiting for CI status checks", "project", projectName, "sha", webhookSHA, "required", project.RequiredCheckNames)
 		ri, err := d.getRepoInfo(ctx, project.Path)
 		if err != nil {
 			return Result{Step: "status_check", Err: fmt.Errorf("getting repo info: %w", err)}
 		}
-		if err := d.statusChecker.WaitForSuccess(ctx, ri.owner, ri.repo, webhookSHA, project.StatusCheckMaxWait); err != nil {
+		if err := d.statusChecker.WaitForSuccess(ctx, ri.owner, ri.repo, webhookSHA,
+			project.RequiredCheckNames, project.ChecksDiscoveryTimeout, project.StatusCheckMaxWait); err != nil {
 			return Result{SHA: webhookSHA, Step: "status_check", Err: err}
 		}
-		slog.Info("CI status checks passed", "project", projectName)
+		slog.Info("CI status checks passed", "project", projectName, "sha", webhookSHA)
 	}
 
 	// Step 1: git fetch
@@ -195,9 +208,19 @@ func (d *Deployer) run(ctx context.Context, projectName string, project *config.
 		return Result{Step: "git_fetch", Err: err}
 	}
 
-	// Step 2: git reset --hard
+	// Step 2: git reset --hard.
+	//
+	// On the CI-gated path, reset to the EXACT gated SHA — not origin/<branch> —
+	// so the deploy lands on the commit whose checks we just verified. Resetting
+	// to the branch tip would let a commit pushed during the (minutes-long) CI
+	// wait ship without ever being gated (TOCTOU). Every other path (release
+	// events + CLI, both empty-SHA) keeps the branch reset unchanged.
 	slog.Info("git reset", "project", projectName)
-	output, err = GitReset(ctx, project.Path, project.Branch)
+	if gated {
+		output, err = GitResetToSHA(ctx, project.Path, webhookSHA)
+	} else {
+		output, err = GitReset(ctx, project.Path, project.Branch)
+	}
 	if err != nil {
 		slog.Error("git reset output", "project", projectName, "output", output)
 		return Result{Step: "git_reset", Err: err}
