@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 const maxOutputSize = 1 << 20 // 1 MB
@@ -55,13 +57,56 @@ func runCommand(ctx context.Context, dir string, args ...string) (stdout, stderr
 	return out.String(), errOut.String(), nil
 }
 
-// GitFetch runs git fetch origin <branch> in the given directory.
-func GitFetch(ctx context.Context, dir, branch string) (string, error) {
-	_, stderr, err := runCommand(ctx, dir, "git", "fetch", "origin", branch)
-	if err != nil {
-		return stderr, fmt.Errorf("git fetch: %w", err)
+// fetchRetryDelays are the waits before each retry of a fetch that failed on a
+// transient remote error, so a fetch is tried at most len+1 times.
+var fetchRetryDelays = []time.Duration{5 * time.Second, 15 * time.Second, 30 * time.Second}
+
+// transientFetchErrors mark a fetch failure worth retrying. Git prints "Could not
+// read from remote repository" after any failure of the transport, including
+// GitHub briefly answering "Repository not found" or "Permission denied
+// (publickey)" to a deploy key that works a moment later; the retry is bounded,
+// so a key that is really refused still fails within seconds.
+var transientFetchErrors = []string{
+	"Could not read from remote repository",
+	"Could not resolve host",
+	"Connection reset",
+	"Connection timed out",
+	"Connection closed",
+	"closed by remote host",
+	"the remote end hung up unexpectedly",
+	"early EOF",
+	"unexpected disconnect",
+	"RPC failed",
+}
+
+func isTransientFetchError(stderr string) bool {
+	for _, s := range transientFetchErrors {
+		if strings.Contains(stderr, s) {
+			return true
+		}
 	}
-	return "", nil
+	return false
+}
+
+// GitFetch runs git fetch origin <branch> in the given directory, retrying a
+// transient remote failure with backoff.
+func GitFetch(ctx context.Context, dir, branch string) (string, error) {
+	for attempt := 0; ; attempt++ {
+		_, stderr, err := runCommand(ctx, dir, "git", "fetch", "origin", branch)
+		if err == nil {
+			return "", nil
+		}
+		if attempt == len(fetchRetryDelays) || !isTransientFetchError(stderr) || ctx.Err() != nil {
+			return stderr, fmt.Errorf("git fetch: %w", err)
+		}
+		delay := fetchRetryDelays[attempt]
+		slog.Warn("git fetch failed, retrying", "dir", dir, "attempt", attempt+1, "retry_in", delay, "error", err, "output", strings.TrimSpace(stderr))
+		select {
+		case <-ctx.Done():
+			return stderr, fmt.Errorf("git fetch: %w", err)
+		case <-time.After(delay):
+		}
+	}
 }
 
 // GitReset runs git reset --hard origin/<branch> in the given directory.
